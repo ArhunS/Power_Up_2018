@@ -6,7 +6,7 @@ import edu.wpi.first.wpilibj.command.Command;
 
 import org.usfirst.frc.team1923.robot.Robot;
 import org.usfirst.frc.team1923.robot.RobotMap;
-import org.usfirst.frc.team1923.robot.utils.logger.TransientDataSource;
+import org.usfirst.frc.team1923.robot.utils.Converter;
 
 /**
  * Move the elevator to a set position
@@ -20,64 +20,53 @@ public class ElevatorPositionCommand extends Command {
         this(position.getPosition());
 
         this.elevatorPosition = position;
-
-//        Robot.logger.addTransientDataSource("ElevatorPositionCommand_TargetEncoderTick", new TransientDataSource(
-//                () -> this.position + "",
-//                this::isRunning
-//        ));
-//
-//        Robot.logger.addTransientDataSource("ElevatorPositionCommand_Error", new TransientDataSource(
-//                () -> (this.position - Robot.elevatorSubsystem.getEncoderPosition()) + "",
-//                this::isRunning
-//        ));
-//
-//        Robot.logger.addTransientDataSource("ElevatorPositionCommand_Preset", new TransientDataSource(
-//                position::name,
-//                this::isRunning
-//        ));
     }
 
     public ElevatorPositionCommand(double position) {
         this.requires(Robot.elevatorSubsystem);
 
         this.position = (position / RobotMap.Elevator.PULLEY_DIAMETER / Math.PI) * RobotMap.Robot.ENCODER_TICKS_PER_ROTATION;
-        this.setTimeout(6);
+        this.setTimeout(3);
     }
 
     @Override
-    protected void initialize() {
-        System.out.println("ElevatorPositionCommand Init @ " + System.currentTimeMillis());
-    }
-
     protected void execute() {
         Robot.elevatorSubsystem.set(ControlMode.MotionMagic, this.position);
     }
 
+    @Override
     protected boolean isFinished() {
         if (this.elevatorPosition == ElevatorPosition.TOP && Robot.elevatorSubsystem.getForwardLimitSwitch()) {
             return true;
         }
 
-        return Math.abs(this.position - Robot.elevatorSubsystem.getEncoderPosition()) < RobotMap.Elevator.MM_ALLOWABLE_ERROR;
+        return Math.abs(this.position - Robot.elevatorSubsystem.getEncoderPosition()) < RobotMap.Elevator.MM_ALLOWABLE_ERROR || this.isTimedOut();
     }
 
+    public boolean isAlmostFinished(double inchesRemaining) {
+        double error = Math.abs(Robot.elevatorSubsystem.getElevatorPosition() - Converter.ticksToInches((int) this.position, RobotMap.Elevator.PULLEY_DIAMETER));
+
+        return error <= inchesRemaining || (error <= 5 && Robot.elevatorSubsystem.getForwardLimitSwitch());
+    }
+
+    @Override
     protected void end() {
+        System.out.println("Terminate EPC @ " + System.currentTimeMillis());
         Robot.elevatorSubsystem.stop();
-
-        System.out.println("ElevatorPositionCommand End @ " + System.currentTimeMillis());
     }
 
+    @Override
     protected void interrupted() {
         this.end();
     }
 
     public enum ElevatorPosition {
 
-        BOTTOM(0),
+        BOTTOM(-2),
 
         SWITCH(20),
 
-        SCALE(50),
+        NEUTRAL_SCALE(55),
 
         TOP(RobotMap.Elevator.PRIMARY_STAGE_TRAVEL + RobotMap.Elevator.SECONDARY_STAGE_TRAVEL + 1);
 

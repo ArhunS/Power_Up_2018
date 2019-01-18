@@ -1,14 +1,15 @@
 package org.usfirst.frc.team1923.robot.autonomous;
 
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.command.Command;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
-import org.usfirst.frc.team1923.robot.Robot;
 import org.usfirst.frc.team1923.robot.commands.auton.DoNothingAuton;
 
 public class AutonManager {
@@ -22,6 +23,8 @@ public class AutonManager {
     private Autonomous.Side lastRobotPosition;
     private Preset lastAutonPreset;
 
+    private Notifier notifier;
+
     public AutonManager() {
         this.autons = new ArrayList<>();
 
@@ -31,17 +34,20 @@ public class AutonManager {
 
         this.robotPosition.addDefault("None", Autonomous.Side.NONE);
         this.robotPosition.addObject("Left", Autonomous.Side.LEFT);
-        this.robotPosition.addObject("Left Straight", Autonomous.Side.LEFT_STRAIGHT);
         this.robotPosition.addObject("Center", Autonomous.Side.CENTER);
         this.robotPosition.addObject("Right", Autonomous.Side.RIGHT);
-        this.robotPosition.addObject("Right Straight", Autonomous.Side.RIGHT_STRAIGHT);
 
         SmartDashboard.putData("Robot Position", this.robotPosition);
-
-        //Robot.logger.addDataSource("AutonManager_Position", () -> this.robotPosition.getSelected().name());
     }
 
-    public void periodic() {
+    public void start() {
+        if (this.notifier == null) {
+            this.notifier = new Notifier(this::periodic);
+            this.notifier.startPeriodic(0.1);
+        }
+    }
+
+    private void periodic() {
         Autonomous.Side robotPosition = this.robotPosition.getSelected();
         Preset autonPreset = this.autonPreset.getSelected();
 
@@ -109,20 +115,39 @@ public class AutonManager {
 
     public Command getSelectedAuton() {
         Autonomous.FieldConfiguration currentFieldConfiguration;
+        Autonomous.Side startingPosition = this.robotPosition.getSelected();
+        String gameData = DriverStation.getInstance().getGameSpecificMessage();
+
+        Collection<Command> autonList = this.autonList.getOrder();
 
         try {
-            currentFieldConfiguration = Autonomous.FieldConfiguration.valueOf(DriverStation.getInstance().getGameSpecificMessage());
+            currentFieldConfiguration = Autonomous.FieldConfiguration.valueOf(gameData);
+
+            System.out.println("[AutonManager @ " + System.currentTimeMillis() + "] Using GameData: " + currentFieldConfiguration.name() + " (Parsed from " + gameData + ")");
         } catch (IllegalArgumentException e) {
+            System.out.println("[AutonManager @ " + System.currentTimeMillis() + "] Could not use GameData: \"" + gameData + "\"");
             return null;
         }
 
-        for (Command command : this.autonList.getOrder()) {
+        StringBuilder autonListString = new StringBuilder();
+        autonListString.append("[");
+
+        for (Command command : autonList) {
+            autonListString.append(command.getClass().getSimpleName()).append(", ");
+        }
+
+        System.out.println("[AutonManager @ " + System.currentTimeMillis() + "] Using selected StartingPosition: \"" + startingPosition.name() + "\"");
+        System.out.println("[AutonManager @ " + System.currentTimeMillis() + "] Using selected AutonList: " + autonListString.toString().replaceAll(", $", "") + "]");
+
+        for (Command command : autonList) {
             for (Autonomous.Side side : command.getClass().getAnnotation(Autonomous.class).startingPosition()) {
-                if (side == this.robotPosition.getSelected()) {
+                if (side == startingPosition) {
 
                     for (Autonomous.FieldConfiguration fieldConfiguration : command.getClass().getAnnotation(Autonomous.class).fieldConfigurations()) {
 
                         if (fieldConfiguration == currentFieldConfiguration) {
+                            System.out.println("[AutonManager @ " + System.currentTimeMillis() + "] Selecting auton: \"" + command.getClass().getName() + "\"");
+
                             return command;
                         }
 
@@ -131,6 +156,8 @@ public class AutonManager {
                 }
             }
         }
+
+        System.out.println("[AutonManager @ " + System.currentTimeMillis() + "] Selecting default auton: \"DoNothingAuton\"");
 
         return new DoNothingAuton();
     }

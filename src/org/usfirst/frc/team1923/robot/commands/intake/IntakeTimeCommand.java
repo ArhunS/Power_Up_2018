@@ -1,15 +1,20 @@
 package org.usfirst.frc.team1923.robot.commands.intake;
 
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.command.TimedCommand;
 
 import org.usfirst.frc.team1923.robot.Robot;
 
-public class IntakeOutputCommand extends TimedCommand {
+public class IntakeTimeCommand extends TimedCommand {
 
     private double power;
 
-    public IntakeOutputCommand(double power) {
-        super(1);
+    public IntakeTimeCommand(double power) {
+        this(power, 1);
+    }
+
+    public IntakeTimeCommand(double power, double timeout) {
+        super(timeout);
         this.requires(Robot.intakeSubsystem);
 
         this.power = power;
@@ -17,21 +22,18 @@ public class IntakeOutputCommand extends TimedCommand {
 
     @Override
     protected void initialize() {
-        Robot.intakeSubsystem.intake(-this.power);
-
-        System.out.println("IntakeOutputCommand Init @ " + System.currentTimeMillis());
+        System.out.println("Start Eject @ " + (Timer.getFPGATimestamp() - Robot.time));
+        Robot.intakeSubsystem.intake(this.power);
     }
 
     @Override
     protected void end() {
         Robot.intakeSubsystem.stop();
-
-        System.out.println("IntakeOutputCommand End @ " + System.currentTimeMillis());
     }
 
     @Override
     protected void interrupted() {
-        Robot.intakeSubsystem.stop();
+        this.end();
     }
 
 }
